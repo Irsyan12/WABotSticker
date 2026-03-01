@@ -1,7 +1,7 @@
 {
   "name": "stickerbot",
   "version": "1.4.0",
-  "description": "StickerBOT by DrelezTM",
+  "description": "StickerBOT by PemainM4lam",
   "main": "index.js",
   "scripts": {
     "start": "node ."
@@ -10,9 +10,9 @@
     "nodejs",
     "whatsapp-web.js",
     "stickerbot",
-    "dreleztm"
+    "PemainM4lam"
   ],
-  "author": "DrelezTM",
+  "author": "PemainM4lam",
   "license": "MIT",
   "dependencies": {
     "colors": "^1.4.0",
@@ -20,6 +20,6 @@
     "fs": "^0.0.1-security",
     "moment-timezone": "^0.5.37",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.27.0"
+    "whatsapp-web.js": "^1.34.6"
   }
 }
