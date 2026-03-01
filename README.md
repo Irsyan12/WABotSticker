@@ -34,11 +34,12 @@
 * [config.json](https://github.com/DrelezTM/StickerWhatsAppBOT/blob/main/config/config.json)
   ```json
   {
-    "name": "StickerBOT",
-    "author": "@DrelezTM",
-    "prefix": "!",
-    "timezone": "Asia/Jakarta",
-    "groups": true
+      "name": "PemainM4lam",
+      "author": "@PemainM4lam",
+      "prefix": "!",
+      "timezone": "Asia/Jakarta",
+      "groups": true,
+      "log": true
   }
   ```
   * config.name : *name for the sticker* (string)
