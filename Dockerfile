@@ -36,7 +36,6 @@ RUN apt-get update && apt-get install -y \
   libxss1 \
   libxtst6 \
   libappindicator3-1 \
-  libindicator3-7 \
   fonts-liberation \
   libu2f-udev \
   && rm -rf /var/lib/apt/lists/*
