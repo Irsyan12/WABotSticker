@@ -5,7 +5,6 @@ services:
     container_name: stickerwhatsappbot
     restart: unless-stopped
     volumes:
-      - ./:/app
       - ./config:/app/config
       # Uncomment below to persist session data
       # - ./.wwebjs_auth:/app/.wwebjs_auth
