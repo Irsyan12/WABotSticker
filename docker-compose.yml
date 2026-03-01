@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config:/app/config
+      - ./.wwebjs_auth:/app/.wwebjs_auth
       # Uncomment below to persist session data
       # - ./.wwebjs_auth:/app/.wwebjs_auth
     environment:

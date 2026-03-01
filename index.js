@@ -6,7 +6,7 @@ const fs = require("fs");
 
 // Sistem limit stiker per user/grup
 const stickerLimit = {};
-const LIMIT_COUNT = 2;
+const LIMIT_COUNT = 10;
 const LIMIT_WINDOW = 60 * 60 * 1000; // 1 jam dalam ms
 
 const client = new Client({
