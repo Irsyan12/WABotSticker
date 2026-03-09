@@ -103,21 +103,21 @@ client.on("message", async (message) => {
       //   client.sendMessage(message.from, "*[⏳]* Loading..");
       try {
         const media = await message.downloadMedia();
-        client
-          .sendMessage(message.from, media, {
-            sendMediaAsSticker: true,
-            stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
-            stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
-          })
-          .then(() => {
-            // client.sendMessage(message.from, "*[✅]* Successfully!");
-          });
-      } catch {
-        client.sendMessage(message.from, "❌ Gagal cuk, Sabar yee!");
+        await client.sendMessage(message.from, media, {
+          sendMediaAsSticker: true,
+          stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
+          stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
+        });
+      } catch (err) {
+        console.error("Sticker error:", err);
+        client.sendMessage(
+          message.from,
+          "❌ Gagal cuk, format media tidak didukung!",
+        );
       }
 
       // Image to Sticker (With Reply Image)
-    } else if (message.body === `${config.prefix}stc`)  {
+    } else if (message.body === `${config.prefix}stc`) {
       // Limit per user/grup
       const key = message.from;
       const now = Date.now();
@@ -144,24 +144,28 @@ client.on("message", async (message) => {
         // client.sendMessage(message.from, "*[⏳]* Loading..");
         try {
           const media = await quotedMsg.downloadMedia();
-          client
-            .sendMessage(message.from, media, {
-              sendMediaAsSticker: true,
-              stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
-              stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
-            })
-            .then(() => {
-              //   client.sendMessage(message.from, "*[✅]* Successfully!");
-            });
-        } catch {
-          client.sendMessage(message.from, "❌ Gagal cuk, Sabar yee!");
+          await client.sendMessage(message.from, media, {
+            sendMediaAsSticker: true,
+            stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
+            stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
+          });
+        } catch (err) {
+          console.error("Sticker error:", err);
+          client.sendMessage(
+            message.from,
+            "❌ Gagal cuk, format media tidak didukung!",
+          );
         }
       } else {
         client.sendMessage(message.from, "*[❎]* Reply Image First!");
       }
 
       // Sticker to Image (Auto)
-    } else if (message.type == "sticker" && message._data && message._data.caption === `${config.prefix}image`) {
+    } else if (
+      message.type == "sticker" &&
+      message._data &&
+      message._data.caption === `${config.prefix}image`
+    ) {
       if (config.log)
         console.log(
           `[${"!".red}] ${message.from.replace("@c.us", "").yellow} convert sticker into image`,
