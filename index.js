@@ -1,253 +1,143 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
-const moment = require("moment-timezone");
-const colors = require("colors");
-const fs = require("fs");
+require("dotenv").config();
+const express = require("express");
+const axios = require("axios");
+const sharp = require("sharp");
+const {
+  sendTextMessage,
+  sendMediaMessage,
+  parseIncomingMessage,
+} = require("./venusconnect");
 
-// Sistem limit stiker per user/grup
-const stickerLimit = {};
-const LIMIT_COUNT = 10;
-const LIMIT_WINDOW = 60 * 60 * 1000; // 1 jam dalam ms
+const app = express();
+app.use(express.json({ limit: "20mb" }));
 
-const client = new Client({
-  restartOnAuthFail: true,
-  puppeteer: {
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  },
-  webVersionCache: {
-    type: "remote",
-    remotePath:
-      "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2403.2.html",
-  },
-  ffmpeg: "./ffmpeg.exe",
-  authStrategy: new LocalAuth({ clientId: "client" }),
-});
-const config = require("./config/config.json");
+const PREFIX = process.env.BOT_PREFIX || "!";
+const SESSION_ID = process.env.VENUS_SESSION_ID;
+const PORT = Number(process.env.PORT || 3000);
+const GROUPS_ENABLED = String(process.env.GROUPS_ENABLED || "true") === "true";
+const LIMIT_COUNT = Number(process.env.LIMIT_COUNT || 10);
+const LIMIT_WINDOW = Number(process.env.LIMIT_WINDOW_MINUTES || 60) * 60 * 1000;
 
-client.on("qr", (qr) => {
-  console.log(
-    `[${moment().tz(config.timezone).format("HH:mm:ss")}] Scan the QR below : `,
-  );
-  qrcode.generate(qr, { small: true });
-});
+const stickerLimit = new Map();
 
-client.on("ready", () => {
-  console.clear();
-  const consoleText = "./config/console.txt";
-  fs.readFile(consoleText, "utf-8", (err, data) => {
-    if (err) {
-      console.log(
-        `[${moment().tz(config.timezone).format("HH:mm:ss")}] Console Text not found!`
-          .yellow,
-      );
-      console.log(
-        `[${moment().tz(config.timezone).format("HH:mm:ss")}] ${config.name} is Already!`
-          .green,
-      );
-    } else {
-      console.log(data.green);
-      console.log(
-        `[${moment().tz(config.timezone).format("HH:mm:ss")}] ${config.name} is Already!`
-          .green,
-      );
-    }
+function getLimitState(key) {
+  const now = Date.now();
+  const existing = stickerLimit.get(key) || [];
+  const active = existing.filter((timestamp) => now - timestamp < LIMIT_WINDOW);
+  stickerLimit.set(key, active);
+
+  if (active.length >= LIMIT_COUNT) {
+    const oldest = active[0];
+    const waitMs = LIMIT_WINDOW - (now - oldest);
+    const waitMin = Math.max(1, Math.ceil(waitMs / 60000));
+    return { allowed: false, waitMin };
+  }
+
+  active.push(now);
+  stickerLimit.set(key, active);
+  return { allowed: true };
+}
+
+async function loadMediaBuffer(mediaSource) {
+  if (!mediaSource || typeof mediaSource !== "string") {
+    throw new Error("Media source tidak valid");
+  }
+
+  if (mediaSource.startsWith("data:")) {
+    const base64 = mediaSource.split(",")[1] || "";
+    return Buffer.from(base64, "base64");
+  }
+
+  const response = await axios.get(mediaSource, {
+    responseType: "arraybuffer",
+    timeout: 30000,
   });
+  return Buffer.from(response.data);
+}
+
+async function convertToWebpDataUri(mediaSource) {
+  const mediaBuffer = await loadMediaBuffer(mediaSource);
+  const webpBuffer = await sharp(mediaBuffer, { animated: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+  return `data:image/webp;base64,${webpBuffer.toString("base64")}`;
+}
+
+async function onIncomingMessage(message) {
+  if (!SESSION_ID) {
+    console.error("VENUS_SESSION_ID belum diatur di .env");
+    return;
+  }
+
+  if (!message.from) return;
+  if (message.isGroup && !GROUPS_ENABLED) return;
+
+  const command = (message.commandText || "").trim();
+
+  if (command === `${PREFIX}ping`) {
+    await sendTextMessage(SESSION_ID, message.from, "Pong! Server is running.");
+    return;
+  }
+
+  if (command === `${PREFIX}help`) {
+    await sendTextMessage(
+      SESSION_ID,
+      message.from,
+      "*[📌] Daftar Perintah :*\n\n*1.* `!ping` - Cek bot aktif\n*2.* `!stc` - Kirim media dengan caption !stc untuk buat stiker\n\n*[❗] Catatan :*\n- Limit 10 stiker / 1 jam per chat",
+    );
+    return;
+  }
+
+  if (command !== `${PREFIX}stc`) return;
+
+  if (!message.mediaSource) {
+    await sendTextMessage(
+      SESSION_ID,
+      message.from,
+      "❌ Kirim gambar dengan caption !stc untuk membuat stiker.",
+    );
+    return;
+  }
+
+  const limitState = getLimitState(message.from);
+  if (!limitState.allowed) {
+    await sendTextMessage(
+      SESSION_ID,
+      message.from,
+      `❌ Limit stiker tercapai, coba lagi sekitar ${limitState.waitMin} menit lagi.`,
+    );
+    return;
+  }
+
+  try {
+    const webpDataUri = await convertToWebpDataUri(message.mediaSource);
+    await sendMediaMessage(SESSION_ID, message.from, [webpDataUri], "");
+  } catch (error) {
+    console.error("Sticker conversion error:", error.message);
+    await sendTextMessage(
+      SESSION_ID,
+      message.from,
+      "❌ Gagal convert media ke stiker. Pastikan media berupa gambar yang valid.",
+    );
+  }
+}
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, service: "stickerbot-venusconnect" });
 });
 
-client.on("message", async (message) => {
-  const isGroups = message.from.endsWith("@g.us") ? true : false;
-  if ((isGroups && config.groups) || !isGroups) {
-    // Ping command
-    if (message.body === `${config.prefix}ping`) {
-      client.sendMessage(message.from, "🫷 Iziin!");
-      return;
-    }
-    if (message.body === `${config.prefix}help`) {
-      client.sendMessage(
-        message.from,
-        "*[📌] Daftar Perintah :*\n\n*1.* `!ping` - Untuk mengecek bot aktif atau tidak\n*2.* `!stc` - Untuk mengubah gambar/video/gif menjadi stiker (Otomatis & Keterangan)\n*3.* `!stc` - Untuk mengubah gambar menjadi stiker dengan membalas gambar\n*4.* `!image` - Untuk mengubah stiker menjadi gambar dengan membalas stiker\n\n*[❗] Catatan :*\n- Jangan spam plis, server gratisan nih",
-      );
-      return;
-    }
-    // Image to Sticker (Caption Command Only)
-    if (
-      (message.type == "image" ||
-        message.type == "video" ||
-        message.type == "gif") &&
-      message._data &&
-      message._data.caption === `${config.prefix}stc`
-    ) {
-      // Limit per user/grup
-      const key = message.from;
-      const now = Date.now();
-      if (!stickerLimit[key]) {
-        stickerLimit[key] = [];
-      }
-      // Hapus request yang sudah lewat 1 jam
-      stickerLimit[key] = stickerLimit[key].filter(
-        (ts) => now - ts < LIMIT_WINDOW,
-      );
-      if (stickerLimit[key].length >= LIMIT_COUNT) {
-        client.sendMessage(
-          message.from,
-          "❌ Limit stiker tercapai, tunggu 1 jam lagi.",
-        );
-        return;
-      }
-      stickerLimit[key].push(now);
-      if (config.log)
-        console.log(
-          `[${"!".red}] ${message.from.replace("@c.us", "").yellow} created sticker`,
-        );
-      //   client.sendMessage(message.from, "*[⏳]* Loading..");
-      try {
-        const media = await message.downloadMedia();
-        await client.sendMessage(message.from, media, {
-          sendMediaAsSticker: true,
-          stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
-          stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
-        });
-      } catch (err) {
-        console.error("Sticker error:", err);
-        client.sendMessage(
-          message.from,
-          "❌ Gagal cuk, format media tidak didukung!",
-        );
-      }
+app.post("/webhook", async (req, res) => {
+  res.status(200).json({ ok: true });
 
-      // Image to Sticker (With Reply Image)
-    } else if (message.body === `${config.prefix}stc`) {
-      // Limit per user/grup
-      const key = message.from;
-      const now = Date.now();
-      if (!stickerLimit[key]) {
-        stickerLimit[key] = [];
-      }
-      stickerLimit[key] = stickerLimit[key].filter(
-        (ts) => now - ts < LIMIT_WINDOW,
-      );
-      if (stickerLimit[key].length >= LIMIT_COUNT) {
-        client.sendMessage(
-          message.from,
-          "❌ Limit stiker tercapai, tunggu 1 jam lagi.",
-        );
-        return;
-      }
-      stickerLimit[key].push(now);
-      if (config.log)
-        console.log(
-          `[${"!".red}] ${message.from.replace("@c.us", "").yellow} created sticker`,
-        );
-      const quotedMsg = await message.getQuotedMessage();
-      if (message.hasQuotedMsg && quotedMsg.hasMedia) {
-        // client.sendMessage(message.from, "*[⏳]* Loading..");
-        try {
-          const media = await quotedMsg.downloadMedia();
-          await client.sendMessage(message.from, media, {
-            sendMediaAsSticker: true,
-            stickerName: config.name, // Sticker Name = Edit in 'config/config.json'
-            stickerAuthor: config.author, // Sticker Author = Edit in 'config/config.json'
-          });
-        } catch (err) {
-          console.error("Sticker error:", err);
-          client.sendMessage(
-            message.from,
-            "❌ Gagal cuk, format media tidak didukung!",
-          );
-        }
-      } else {
-        client.sendMessage(message.from, "*[❎]* Reply Image First!");
-      }
-
-      // Sticker to Image (Auto)
-    } else if (
-      message.type == "sticker" &&
-      message._data &&
-      message._data.caption === `${config.prefix}image`
-    ) {
-      if (config.log)
-        console.log(
-          `[${"!".red}] ${message.from.replace("@c.us", "").yellow} convert sticker into image`,
-        );
-      //   client.sendMessage(message.from, "*[⏳]* Loading..");
-      try {
-        const media = await message.downloadMedia();
-        client.sendMessage(message.from, media).then(() => {
-          //   client.sendMessage(message.from, "*[✅]* Successfully!");
-        });
-      } catch {
-        client.sendMessage(message.from, "❌ Gagal cuk, Sabar yee!");
-      }
-
-      // Sticker to Image (With Reply Sticker)
-    } else if (message.body == `${config.prefix}image`) {
-      if (config.log)
-        console.log(
-          `[${"!".red}] ${message.from.replace("@c.us", "").yellow} convert sticker into image`,
-        );
-      const quotedMsg = await message.getQuotedMessage();
-      if (message.hasQuotedMsg && quotedMsg.hasMedia) {
-        // client.sendMessage(message.from, "*[⏳]* Loading..");
-        try {
-          const media = await quotedMsg.downloadMedia();
-          client.sendMessage(message.from, media).then(() => {
-            // client.sendMessage(message.from, "*[✅]* Successfully!");
-          });
-        } catch {
-          client.sendMessage(message.from, "❌ Gagal cuk, Sabar yee!");
-        }
-      } else {
-        client.sendMessage(message.from, "*[❎]* Reply Sticker First!");
-      }
-
-      // Claim or change sticker name and sticker author
-    } else if (message.body.startsWith(`${config.prefix}change`)) {
-      if (config.log)
-        console.log(
-          `[${"!".red}] ${message.from.replace("@c.us", "").yellow} change the author name on the sticker`,
-        );
-      if (message.body.includes("|")) {
-        let name = message.body
-          .split("|")[0]
-          .replace(message.body.split(" ")[0], "")
-          .trim();
-        let author = message.body.split("|")[1].trim();
-        const quotedMsg = await message.getQuotedMessage();
-        if (message.hasQuotedMsg && quotedMsg.hasMedia) {
-          //   client.sendMessage(message.from, "*[⏳]* Loading..");
-          try {
-            const media = await quotedMsg.downloadMedia();
-            client
-              .sendMessage(message.from, media, {
-                sendMediaAsSticker: true,
-                stickerName: name,
-                stickerAuthor: author,
-              })
-              .then(() => {
-                // client.sendMessage(message.from, "*[✅]* Successfully!");
-              });
-          } catch {
-            client.sendMessage(message.from, "❌ Gagal cuk, Sabar yee!");
-          }
-        } else {
-          client.sendMessage(message.from, "*[❎]* Reply Sticker First!");
-        }
-      } else {
-        client.sendMessage(
-          message.from,
-          `*[❎]* Run the command :\n*${config.prefix}change <name> | <author>*`,
-        );
-      }
-
-      // Read chat
-    } else {
-      client.getChatById(message.id.remote).then(async (chat) => {
-        await chat.sendSeen();
-      });
-    }
+  try {
+    const incomingMessage = parseIncomingMessage(req.body);
+    if (!incomingMessage) return;
+    await onIncomingMessage(incomingMessage);
+  } catch (error) {
+    console.error("Webhook handling error:", error.message);
   }
 });
 
-console.log("Trying to connect...");
-client.initialize();
+app.listen(PORT, () => {
+  console.log(`Venus sticker bot listening on port ${PORT}`);
+});

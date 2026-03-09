@@ -1,15 +1,12 @@
-version: "3.8"
 services:
   stickerbot:
     build: .
     container_name: stickerwhatsappbot
     restart: unless-stopped
-    volumes:
-      - ./config:/app/config
-      - ./.wwebjs_auth:/app/.wwebjs_auth
-      # Uncomment below to persist session data
-      # - ./.wwebjs_auth:/app/.wwebjs_auth
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-    # ports:
-    #   - "3000:3000" # Uncomment if your bot exposes a port
+      - PORT=3000
+    ports:
+      - "3000:3000"
