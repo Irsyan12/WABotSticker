@@ -13,15 +13,44 @@ const client = new Client({
   restartOnAuthFail: true,
   puppeteer: {
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--disable-features=TranslateUI",
+      "--disable-ipc-flooding-protection",
+      "--disable-hang-monitor",
+      "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-sync",
+      "--force-color-profile=srgb",
+      "--metrics-recording-only",
+      "--enable-automation",
+      "--password-store=basic",
+      "--use-mock-keychain",
+      "--hide-scrollbars",
+      "--mute-audio",
+    ],
+    executablePath: process.env.CHROME_BIN || undefined,
   },
   webVersionCache: {
     type: "remote",
     remotePath:
       "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2403.2.html",
   },
-  ffmpeg: "./ffmpeg.exe",
-  authStrategy: new LocalAuth({ clientId: "client" }),
+  authStrategy: new LocalAuth({
+    clientId: "client",
+    dataPath: "./.wwebjs_auth",
+  }),
 });
 const config = require("./config/config.json");
 
@@ -30,6 +59,39 @@ client.on("qr", (qr) => {
     `[${moment().tz(config.timezone).format("HH:mm:ss")}] Scan the QR below : `,
   );
   qrcode.generate(qr, { small: true });
+});
+
+// Event handlers untuk debugging
+client.on("loading_screen", (percent, message) => {
+  console.log(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] Loading: ${percent}% - ${message}`
+      .cyan,
+  );
+});
+
+client.on("authenticated", () => {
+  console.log(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] ✅ Authenticated successfully!`
+      .green,
+  );
+});
+
+client.on("auth_failure", (msg) => {
+  console.error(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] ❌ Authentication failed: ${msg}`
+      .red,
+  );
+  console.log(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] 💡 Try deleting .wwebjs_auth folder and scan QR again`
+      .yellow,
+  );
+});
+
+client.on("disconnected", (reason) => {
+  console.log(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] ⚠️  Disconnected: ${reason}`
+      .yellow,
+  );
 });
 
 client.on("ready", () => {
@@ -249,5 +311,30 @@ client.on("message", async (message) => {
   }
 });
 
-console.log("Trying to connect...");
+console.log(
+  `[${moment().tz(config.timezone).format("HH:mm:ss")}] 🔄 Trying to connect...`
+    .cyan,
+);
+console.log(
+  `[${moment().tz(config.timezone).format("HH:mm:ss")}] 🤖 Initializing WhatsApp Client...`
+    .cyan,
+);
+
+// Error handling untuk client initialization
+client.on("error", (error) => {
+  console.error(
+    `[${moment().tz(config.timezone).format("HH:mm:ss")}] ❌ Client error:`.red,
+    error,
+  );
+});
+
+process.on("SIGINT", async () => {
+  console.log(
+    `\n[${moment().tz(config.timezone).format("HH:mm:ss")}] 🛑 Shutting down gracefully...`
+      .yellow,
+  );
+  await client.destroy();
+  process.exit(0);
+});
+
 client.initialize();
