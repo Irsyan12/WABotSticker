@@ -42,11 +42,12 @@ const client = new Client({
     ],
     executablePath: process.env.CHROME_BIN || undefined,
   },
-  webVersionCache: {
-    type: "remote",
-    remotePath:
-      "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2403.2.html",
-  },
+  // Let whatsapp-web.js auto-detect the latest compatible version
+  // webVersionCache: {
+  //   type: "remote",
+  //   remotePath:
+  //     "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2403.2.html",
+  // },
   authStrategy: new LocalAuth({
     clientId: "client",
     dataPath: "./.wwebjs_auth",
