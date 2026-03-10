@@ -25,37 +25,57 @@ RUN apt-get update && apt-get install -y \
   && apt-get install -y google-chrome-stable \
   && rm -rf /var/lib/apt/lists/*
 
-# Install ffmpeg and other dependencies
+# Install ALL dependencies from official whatsapp-web.js documentation for no-GUI systems
+# Reference: https://wwebjs.dev/guide/#installation-on-no-gui-systems
 RUN apt-get update && apt-get install -y \
   ffmpeg \
-  libnspr4 \
-  libnss3 \
-  libatk-bridge2.0-0 \
-  libgtk-3-0 \
-  libx11-xcb1 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxrandr2 \
-  libgbm1 \
+  gconf-service \
+  libgbm-dev \
   libasound2 \
-  libpangocairo-1.0-0 \
-  libatspi2.0-0 \
-  libdrm2 \
-  libpango-1.0-0 \
-  libxshmfence1 \
-  libxfixes3 \
-  libxext6 \
-  libx11-6 \
-  libnss3-tools \
-  libxss1 \
-  libxtst6 \
-  libappindicator3-1 \
-  fonts-liberation \
-  libu2f-udev \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libc6 \
+  libcairo2 \
   libcups2 \
   libdbus-1-3 \
+  libexpat1 \
+  libfontconfig1 \
+  libgcc1 \
+  libgconf-2-4 \
+  libgdk-pixbuf2.0-0 \
+  libglib2.0-0 \
+  libgtk-3-0 \
+  libnspr4 \
+  libnss3 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  libstdc++6 \
+  libx11-6 \
+  libx11-xcb1 \
+  libxcb1 \
+  libxcomposite1 \
+  libxcursor1 \
+  libxdamage1 \
+  libxext6 \
+  libxfixes3 \
+  libxi6 \
+  libxrandr2 \
+  libxrender1 \
+  libxss1 \
+  libxtst6 \
+  ca-certificates \
+  fonts-liberation \
+  libappindicator1 \
+  libnss3-tools \
+  lsb-release \
+  xdg-utils \
+  libdrm2 \
+  libgbm1 \
+  libatspi2.0-0 \
+  libxshmfence1 \
   libxkbcommon0 \
   libxcb-dri3-0 \
+  libu2f-udev \
   && rm -rf /var/lib/apt/lists/*
 
 # Set Chrome path
